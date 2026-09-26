@@ -11,10 +11,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     currentSeconds = 0;
     
     setupOffscreenDocument('offscreen.html').then(() => {
-      chrome.runtime.sendMessage({ type: 'START_OFFSCREEN_RECORDING' });
+      chrome.runtime.sendMessage({ 
+        type: 'START_OFFSCREEN_RECORDING', 
+        projectId: currentProjectId, 
+        title: currentTitle 
+      });
       sendResponse({ success: true });
     });
     return true; // Keep channel open for async
+  }
+  
+  if (message.type === 'NATIVE_STOP') {
+    isRecording = false;
   }
   
   if (message.type === 'STOP_RECORDING') {

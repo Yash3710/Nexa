@@ -1,16 +1,19 @@
 let recorder;
 let audioChunks = [];
+let activeProjectId = null;
+let activeTitle = null;
 
 chrome.runtime.onMessage.addListener(async (message) => {
   if (message.type === 'START_OFFSCREEN_RECORDING') {
+    activeProjectId = message.projectId;
+    activeTitle = message.title;
+    
     try {
-      // Get display media will prompt the user to select the meeting tab/window to capture audio
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: { displaySurface: "browser" },
         audio: true
       });
       
-      // We only need the audio tracks
       recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
       audioChunks = [];
       
@@ -18,12 +21,25 @@ chrome.runtime.onMessage.addListener(async (message) => {
         if (e.data.size > 0) audioChunks.push(e.data);
       };
       
-      // When user manually stops sharing from Chrome UI
+      // Assign the upload logic right away!
+      recorder.onstop = async () => {
+        recorder.stream.getTracks().forEach(t => t.stop());
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        const file = new File([audioBlob], 'capture.webm', { type: 'audio/webm' });
+        
+        // Notify popup that processing started
+        chrome.runtime.sendMessage({ type: 'PROCESSING_STARTED' });
+        uploadAndAnalyze(file, activeProjectId, activeTitle);
+      };
+      
+      // When user manually stops sharing from Chrome's native UI
       stream.getVideoTracks()[0].onended = () => {
         if (recorder.state === 'recording') recorder.stop();
+        // Tell background script we stopped
+        chrome.runtime.sendMessage({ type: 'NATIVE_STOP' });
       };
 
-      recorder.start(1000); // chunk every second
+      recorder.start(1000);
     } catch (e) {
       console.error('Failed to get media:', e);
       chrome.runtime.sendMessage({ type: 'PROCESSING_ERROR', error: 'Microphone/Screen permission denied' });
@@ -31,21 +47,9 @@ chrome.runtime.onMessage.addListener(async (message) => {
   }
 
   if (message.type === 'STOP_OFFSCREEN_RECORDING') {
-    if (!recorder || recorder.state === 'inactive') return;
-    
-    recorder.onstop = async () => {
-      // Clean up tracks
-      recorder.stream.getTracks().forEach(t => t.stop());
-
-      // Create audio blob
-      const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-      const file = new File([audioBlob], 'capture.webm', { type: 'audio/webm' });
-      
-      // Send to server
-      uploadAndAnalyze(file, message.projectId, message.title);
-    };
-    
-    recorder.stop();
+    if (recorder && recorder.state !== 'inactive') {
+      recorder.stop();
+    }
   }
 });
 

@@ -66,7 +66,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Listen for messages from background/offscreen
   chrome.runtime.onMessage.addListener((msg) => {
-    if (msg.type === 'PROCESSING_SUCCESS') {
+    if (msg.type === 'PROCESSING_STARTED') {
+      stopTimer();
+      recordingBar.classList.add('hidden');
+      stopBtn.classList.add('hidden');
+      setupForm.classList.add('hidden');
+      startBtn.classList.add('hidden');
+      document.getElementById('processing').classList.remove('hidden');
+    } else if (msg.type === 'PROCESSING_SUCCESS') {
       document.getElementById('processing').classList.add('hidden');
       document.getElementById('success').classList.remove('hidden');
       document.getElementById('view-meeting-link').href = `http://localhost:3000/meetings/${msg.data.meeting_id}`;
@@ -75,6 +82,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       const errorEl = document.getElementById('error');
       errorEl.classList.remove('hidden');
       document.getElementById('error-text').textContent = 'Error: ' + msg.error;
+    } else if (msg.type === 'NATIVE_STOP') {
+      // If user hit "Stop Sharing" on Chrome UI while popup was open
+      stopTimer();
     }
   });
 
