@@ -14,14 +14,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Load projects from local backend
   try {
-    const res = await fetch('http://localhost:3000/api/projects');
+    const res = await fetch('http://127.0.0.1:3000/api/projects');
     const data = await res.json();
     projectSelect.innerHTML = data.projects.length === 0 
       ? '<option value="">No projects found. Create one first.</option>'
       : data.projects.map(p => `<option value="${p.project_id || p.id}">${p.project_name || p.name}</option>`).join('');
     if (data.projects.length === 0) startBtn.disabled = true;
   } catch (err) {
-    projectSelect.innerHTML = '<option value="">Error loading projects (is server running?)</option>';
+    projectSelect.innerHTML = `<option value="">Error: ${err.message}</option>`;
     startBtn.disabled = true;
   }
 

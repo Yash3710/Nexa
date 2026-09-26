@@ -54,7 +54,7 @@ async function uploadAndAnalyze(file, projectId, title) {
     // 1. Transcribe (via Localhost API which calls Groq)
     const formData = new FormData();
     formData.append('file', file);
-    const transcribeRes = await fetch('http://localhost:3000/api/transcribe', {
+    const transcribeRes = await fetch('http://127.0.0.1:3000/api/transcribe', {
       method: 'POST',
       body: formData
     });
@@ -63,7 +63,7 @@ async function uploadAndAnalyze(file, projectId, title) {
     if (!transcribeRes.ok) throw new Error(transcribeData.error || 'Transcription failed');
 
     // 2. Analyze (via Localhost API which calls Gemini)
-    const analyzeRes = await fetch('http://localhost:3000/api/analyze', {
+    const analyzeRes = await fetch('http://127.0.0.1:3000/api/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
