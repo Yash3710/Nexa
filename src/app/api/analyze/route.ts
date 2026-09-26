@@ -14,6 +14,11 @@ export async function POST(req: NextRequest) {
     }
     
     const { transcript, project_id, meeting_title } = parsed.data;
+    
+    console.log(`\n\n--- TRANSCRIPT RECEIVED [Project: ${project_id}] ---`);
+    console.log(`Length: ${transcript?.length || 0} characters`);
+    console.log(`Preview: "${transcript ? transcript.substring(0, 150) : 'EMPTY'}"...\n-------------------------------------------------\n`);
+    
     const supabase = createServiceClient();
     
     // Fetch open tasks for cross-meeting context

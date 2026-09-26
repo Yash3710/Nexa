@@ -46,16 +46,28 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Actions
-  startBtn.addEventListener('click', () => {
+  startBtn.addEventListener('click', async () => {
     const projectId = projectSelect.value;
     const title = document.getElementById('meeting-title').value || 'Extension Capture';
     if (!projectId) return;
+
+    // FORCE MICROPHONE PERMISSION PROMPT
+    try {
+      const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Stop it immediately, we just needed the permission granted
+      micStream.getTracks().forEach(t => t.stop());
+    } catch (err) {
+      alert("Microphone access is required to record your voice! Please allow it.");
+      return;
+    }
 
     chrome.runtime.sendMessage({ type: 'START_RECORDING', projectId, title }, (res) => {
       if (res.success) {
         currentSeconds = 0;
         showRecordingUI();
         startTimer();
+      } else {
+        alert("Error starting recording: " + res.error);
       }
     });
   });
