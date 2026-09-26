@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Nexa",
+  "description": "AI Meeting Execution Platform — Capture meeting audio and auto-generate Minutes of Meeting",
+  "version": "1.0.0",
+  "permissions": [
+    "tabCapture",
+    "offscreen",
+    "storage",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "http://localhost:3000/*"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}
