@@ -1,23 +1,25 @@
-let isRecording = false;
+let appState = 'idle'; // idle, recording, processing, success, error
 let currentProjectId = null;
 let currentTitle = null;
-let currentSeconds = 0;
+let startTime = null;
+let lastMeetingId = null;
+let lastError = null;
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'START_RECORDING') {
     currentProjectId = message.projectId;
     currentTitle = message.title;
-    isRecording = true;
-    currentSeconds = 0;
+    appState = 'recording';
+    startTime = Date.now();
     
-    // Get the active tab seamlessly
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (!tabs || tabs.length === 0) {
-        sendResponse({ success: false, error: "No active tab to record." });
+        appState = 'error';
+        lastError = "No active tab to record.";
+        sendResponse({ success: false });
         return;
       }
       
-      // Get a media stream ID specifically for this tab (NO screen share prompt!)
       chrome.tabCapture.getMediaStreamId({ targetTabId: tabs[0].id }, (streamId) => {
         setupOffscreenDocument('offscreen.html').then(() => {
           chrome.runtime.sendMessage({ 
@@ -31,31 +33,34 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
     });
     
-    return true; // Keep channel open for async response
-  }
-  
-  if (message.type === 'NATIVE_STOP') {
-    isRecording = false;
-  }
-  
-  if (message.type === 'STOP_RECORDING') {
-    chrome.runtime.sendMessage({ 
-      type: 'STOP_OFFSCREEN_RECORDING', 
-      projectId: currentProjectId, 
-      title: currentTitle 
-    });
-    isRecording = false;
-    sendResponse({ success: true });
-    return true;
+    return true; 
   }
   
   if (message.type === 'GET_STATE') {
-    sendResponse({ isRecording, seconds: currentSeconds });
+    sendResponse({
+      state: appState,
+      startTime: startTime,
+      meetingId: lastMeetingId,
+      error: lastError
+    });
     return true;
   }
 
-  if (message.type === 'UPDATE_TIMER') {
-    currentSeconds = message.seconds;
+  // State transitions from offscreen events
+  if (message.type === 'PROCESSING_STARTED') appState = 'processing';
+  
+  if (message.type === 'PROCESSING_SUCCESS') {
+    appState = 'success';
+    lastMeetingId = message.data.meeting_id;
+  }
+  
+  if (message.type === 'PROCESSING_ERROR') {
+    appState = 'error';
+    lastError = message.error;
+  }
+  
+  if (message.type === 'RESET_STATE') {
+    appState = 'idle';
   }
 });
 
