@@ -2,6 +2,8 @@ let recorder;
 let audioChunks = [];
 let activeProjectId = null;
 let activeTitle = null;
+let audioCtx;
+let globalStreams = [];
 
 chrome.runtime.onMessage.addListener(async (message) => {
   if (message.type === 'START_OFFSCREEN_RECORDING') {
@@ -9,40 +11,60 @@ chrome.runtime.onMessage.addListener(async (message) => {
     activeTitle = message.title;
     
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { displaySurface: "browser" },
-        audio: true
-      });
+      audioCtx = new AudioContext();
+      const dest = audioCtx.createMediaStreamDestination();
+      globalStreams = [];
       
-      recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      // 1. Capture the Meeting Tab Audio (without screen share prompts)
+      if (message.streamId) {
+        const tabStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            mandatory: {
+              chromeMediaSource: 'tab',
+              chromeMediaSourceId: message.streamId
+            }
+          },
+          video: false
+        });
+        globalStreams.push(tabStream);
+        const tabSource = audioCtx.createMediaStreamSource(tabStream);
+        tabSource.connect(audioCtx.destination); // Play it back to you so you can hear the meeting!
+        tabSource.connect(dest);                 // Route it to our recorder
+      }
+
+      // 2. Capture Your Microphone (so your own voice is in the MoM)
+      try {
+        const micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        globalStreams.push(micStream);
+        const micSource = audioCtx.createMediaStreamSource(micStream);
+        micSource.connect(dest); // Route it to our recorder (but NOT destination, or you'd hear an echo)
+      } catch (micErr) {
+        console.warn("Could not get microphone. Recording tab only.");
+      }
+
+      // Start recording the mixed audio!
+      recorder = new MediaRecorder(dest.stream, { mimeType: 'audio/webm' });
       audioChunks = [];
       
       recorder.ondataavailable = e => {
         if (e.data.size > 0) audioChunks.push(e.data);
       };
       
-      // Assign the upload logic right away!
       recorder.onstop = async () => {
-        recorder.stream.getTracks().forEach(t => t.stop());
+        globalStreams.forEach(s => s.getTracks().forEach(t => t.stop()));
+        if (audioCtx) audioCtx.close();
+        
         const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
         const file = new File([audioBlob], 'capture.webm', { type: 'audio/webm' });
         
-        // Notify popup that processing started
         chrome.runtime.sendMessage({ type: 'PROCESSING_STARTED' });
         uploadAndAnalyze(file, activeProjectId, activeTitle);
       };
       
-      // When user manually stops sharing from Chrome's native UI
-      stream.getVideoTracks()[0].onended = () => {
-        if (recorder.state === 'recording') recorder.stop();
-        // Tell background script we stopped
-        chrome.runtime.sendMessage({ type: 'NATIVE_STOP' });
-      };
-
       recorder.start(1000);
     } catch (e) {
-      console.error('Failed to get media:', e);
-      chrome.runtime.sendMessage({ type: 'PROCESSING_ERROR', error: 'Microphone/Screen permission denied' });
+      console.error('Failed to start recording:', e);
+      chrome.runtime.sendMessage({ type: 'PROCESSING_ERROR', error: 'Failed to capture audio.' });
     }
   }
 

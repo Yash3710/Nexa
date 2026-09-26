@@ -10,15 +10,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     isRecording = true;
     currentSeconds = 0;
     
-    setupOffscreenDocument('offscreen.html').then(() => {
-      chrome.runtime.sendMessage({ 
-        type: 'START_OFFSCREEN_RECORDING', 
-        projectId: currentProjectId, 
-        title: currentTitle 
+    // Get the active tab seamlessly
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (!tabs || tabs.length === 0) {
+        sendResponse({ success: false, error: "No active tab to record." });
+        return;
+      }
+      
+      // Get a media stream ID specifically for this tab (NO screen share prompt!)
+      chrome.tabCapture.getMediaStreamId({ targetTabId: tabs[0].id }, (streamId) => {
+        setupOffscreenDocument('offscreen.html').then(() => {
+          chrome.runtime.sendMessage({ 
+            type: 'START_OFFSCREEN_RECORDING', 
+            projectId: currentProjectId, 
+            title: currentTitle,
+            streamId: streamId
+          });
+          sendResponse({ success: true });
+        });
       });
-      sendResponse({ success: true });
     });
-    return true; // Keep channel open for async
+    
+    return true; // Keep channel open for async response
   }
   
   if (message.type === 'NATIVE_STOP') {
